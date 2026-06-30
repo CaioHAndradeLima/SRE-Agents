@@ -1,0 +1,49 @@
+# =============================================================================
+# LiteLLM Gateway configuration
+# -----------------------------------------------------------------------------
+# The app calls two logical model groups: "fast" and "reasoning".
+# Each group has multiple deployments; the router picks one per request based on
+# the routing strategy, and fails over to the others on error/timeout.
+#
+# Run:  litellm --config litellm.config.yaml  (or via docker-compose)
+# Provider keys are read from the environment (never hardcode them here).
+# =============================================================================
+
+model_list:
+  # --- "fast" tier: triage / classification (cheap + low latency) ---
+  - model_name: fast
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: fast
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-latest
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # --- "reasoning" tier: root-cause analysis (stronger models) ---
+  - model_name: reasoning
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-latest
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: reasoning
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+router_settings:
+  # Route to the lowest-latency healthy deployment within a group.
+  # Alternatives: simple-shuffle, least-busy, usage-based-routing.
+  routing_strategy: latency-based-routing
+  num_retries: 2
+  timeout: 60
+  # Cross-group fallback: if every "reasoning" deployment fails, degrade to "fast".
+  fallbacks:
+    - reasoning: ["fast"]
+
+litellm_settings:
+  drop_params: true            # silently drop params a given provider doesn't support
+  # max_budget: 50            # uncomment to cap total spend (USD) as a hard guardrail
+  # budget_duration: 30d
+
+general_settings:
+  master_key: os.environ/LITELLM_API_KEY   # must match LITELLM_API_KEY in .env
