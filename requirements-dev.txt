@@ -1,0 +1,15 @@
+# =============================================================================
+# Multi-Agent AI — SRE Incident Copilot :: development & test dependencies
+# Install with:  pip install -r requirements.txt -r requirements-dev.txt
+# =============================================================================
+-r requirements.txt
+
+# --- Testing ---
+pytest>=9,<10
+pytest-asyncio>=1.4,<2       # async agent / tool tests
+respx>=0.23,<1               # mock httpx calls (gateway / mock SRE integrations)
+
+# --- Linting & types ---
+ruff>=0.15,<1
+mypy>=2,<3
+types-PyYAML>=6,<7

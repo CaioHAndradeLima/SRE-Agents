@@ -1,0 +1,42 @@
+# =============================================================================
+# Multi-Agent AI — SRE Incident Copilot :: runtime dependencies
+# -----------------------------------------------------------------------------
+# Target: Python 3.11–3.13  (every pin below requires >=3.10; litellm caps <3.14)
+#
+# Strategy to AVOID dependency conflicts:
+#   * Constrain each DIRECT dependency to its current major (>=current,<next-major).
+#   * Do NOT pin shared transitive packages (langchain-core, langsmith, httpx, …)
+#     so pip's resolver can align them across the LangChain v1 ecosystem.
+#   * Versions verified against PyPI latest releases (mutually compatible set).
+# Regenerate a fully-pinned lock with:  pip install pip-tools && pip-compile
+# =============================================================================
+
+# --- Orchestration: LangGraph + LangChain v1 ecosystem (kept on the same major) ---
+langgraph>=1.2,<2
+langchain>=1.3,<2
+langchain-openai>=1.3,<2
+langchain-anthropic>=1.4,<2
+langchain-qdrant>=1.1,<2
+# langchain-core & langsmith are intentionally left UNPINNED:
+# they are resolved transitively so all langchain-* packages agree on one version.
+
+# --- Model gateway / routing (LiteLLM proxy + SDK) ---
+litellm>=1.90,<2
+
+# --- LLM provider SDKs (used via the gateway's OpenAI-compatible endpoint) ---
+openai>=2.44,<3
+anthropic>=0.113,<1
+
+# --- RAG: vector store + local (offline) embeddings ---
+qdrant-client>=1.18,<2
+fastembed>=0.8,<0.9          # local ONNX embeddings -> RAG works with no embedding API
+
+# --- Observability (LangSmith ships transitively with langchain) ---
+langfuse>=4.12,<5
+
+# --- Config, parsing, resilience ---
+pydantic>=2.13,<3
+pydantic-settings>=2.14,<3
+python-dotenv>=1,<2
+pyyaml>=6,<7                 # seeded incident scenarios in data/scenarios/*.yaml
+tenacity>=9,<10             # retries/backoff for tool & gateway calls

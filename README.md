@@ -259,7 +259,8 @@ multi-agent-ai/
 │   └── evals/             # LLM-as-judge + datasets
 ├── litellm.config.yaml    # gateway routing rules (models, fallbacks, budgets)
 ├── docker-compose.yml     # Qdrant + LiteLLM (+ optional self-hosted Langfuse)
-├── pyproject.toml
+├── requirements.txt       # runtime dependencies (pinned by major)
+├── requirements-dev.txt   # test/lint/type-check tooling
 ├── .env.example
 └── README.md
 ```
@@ -274,7 +275,7 @@ multi-agent-ai/
 # 1. Environment
 cp .env.example .env          # add OPENAI / ANTHROPIC / LANGSMITH / LANGFUSE keys
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -r requirements.txt -r requirements-dev.txt   # or: pip install -r requirements.txt
 
 # 2. Infra (Qdrant + LiteLLM gateway, optional self-hosted Langfuse)
 docker compose up -d
