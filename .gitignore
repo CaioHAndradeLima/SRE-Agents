@@ -27,6 +27,9 @@ env/
 # OS
 .DS_Store
 
+# Local design docs (not committed)
+docs/
+
 # Local data / vector store
 qdrant_storage/
 *.log

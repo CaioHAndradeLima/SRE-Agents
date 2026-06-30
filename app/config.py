@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # --- LiteLLM gateway ---
     litellm_base_url: str = "http://localhost:4000"
     litellm_api_key: str = "sk-local-dev"
-    # Logical model tiers -> resolve to model groups in litellm.config.yaml.
+
     model_fast: str = "fast"
     model_reasoning: str = "reasoning"
 
