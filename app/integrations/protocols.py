@@ -82,3 +82,20 @@ class DeployController(Protocol):
     def rollback_deploy(self, service: str, to_version: str) -> ActionOutcome: ...
 
     def failover(self, service: str, region: str) -> ActionOutcome: ...
+
+
+@runtime_checkable
+class SREEnvironment(
+    IncidentStore,
+    LogStore,
+    MetricsApi,
+    CiProvider,
+    DeployController,
+    Protocol,
+):
+    """Aggregate of all SRE integrations.
+
+    A single object (the mock now, a real composite later) can satisfy every
+    integration at once, so the tool layer can depend on one dependency instead
+    of five. ``MockSRE`` satisfies this structurally.
+    """
