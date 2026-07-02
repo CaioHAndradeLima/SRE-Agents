@@ -1,67 +1,25 @@
-"""Sub-agent factory — builds LangGraph ReAct agents (Layer 5).
+"""Sub-agent factory — builds LangGraph ReAct agents from the YAML registry.
 
 Each agent is a ``create_react_agent`` graph: an LLM ↔ tools loop until it finishes.
-Tools are wrapped by the permission guard so harm-tier policy is enforced on every call.
+Agent definitions (prompt, tools, model tier) live in ``agents.yaml`` — add a new
+agent there and call ``build_agent("new_name", ...)`` without rewiring this module.
 
-Concepts introduced here:
-* **ReAct agent** — the inner loop (LLM reasons → calls tool → observes result → repeats).
-* **Dynamic specialization** — same factory, different tool set + prompt + model tier per role.
-* **Guarded tools** — Layer 4 sits between the agent and raw tools transparently.
+Tools are wrapped by the permission guard so harm-tier policy is enforced on every call.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
-from app.agents.prompts import DIAGNOSIS_PROMPT, REMEDIATION_PROMPT, TRIAGE_PROMPT
+from app.agents.registry import AgentSpec, load_agent_registry
 from app.config import Settings, get_settings
-from app.gateway.client import ModelTier, get_chat_model
+from app.gateway.client import get_chat_model
 from app.security.guard import ApprovalContext, PermissionGuard
-from app.tools.catalog import (
-    DIAGNOSIS_TOOLS,
-    REMEDIATION_TOOLS,
-    TRIAGE_TOOLS,
-)
-
-AgentName = Literal["triage", "diagnosis", "remediation"]
-
-
-@dataclass(frozen=True)
-class AgentSpec:
-    """Definition of a specialized sub-agent (registry entry)."""
-
-    name: AgentName
-    tool_names: list[str]
-    model_tier: ModelTier
-    prompt: str
-
-
-AGENT_REGISTRY: dict[AgentName, AgentSpec] = {
-    "triage": AgentSpec(
-        name="triage",
-        tool_names=TRIAGE_TOOLS,
-        model_tier="fast",
-        prompt=TRIAGE_PROMPT,
-    ),
-    "diagnosis": AgentSpec(
-        name="diagnosis",
-        tool_names=DIAGNOSIS_TOOLS,
-        model_tier="reasoning",
-        prompt=DIAGNOSIS_PROMPT,
-    ),
-    "remediation": AgentSpec(
-        name="remediation",
-        tool_names=REMEDIATION_TOOLS,
-        model_tier="reasoning",
-        prompt=REMEDIATION_PROMPT,
-    ),
-}
 
 
 def guard_wrap(
@@ -90,24 +48,34 @@ def build_guarded_tools(
     ctx: ApprovalContext,
 ) -> list[BaseTool]:
     """Select tools by name and wrap each with the permission guard."""
-    return [
-        guard_wrap(tool_map[name], guard, ctx)
-        for name in tool_names
-    ]
+    missing = [n for n in tool_names if n not in tool_map]
+    if missing:
+        raise KeyError(f"Unknown tool(s) in agent spec: {missing}")
+    return [guard_wrap(tool_map[name], guard, ctx) for name in tool_names]
+
+
+def get_agent_spec(name: str, *, registry_path: str | None = None) -> AgentSpec:
+    """Look up one agent spec from the YAML registry."""
+    registry = load_agent_registry(registry_path)
+    if name not in registry.agents:
+        known = ", ".join(sorted(registry.agents))
+        raise KeyError(f"Unknown agent '{name}'. Known agents: {known}")
+    return registry.agents[name]
 
 
 def build_agent(
-    name: AgentName,
+    name: str,
     tool_map: dict[str, BaseTool],
     guard: PermissionGuard,
     ctx: ApprovalContext,
     *,
     settings: Settings | None = None,
     model: BaseChatModel | None = None,
+    registry_path: str | None = None,
 ) -> CompiledStateGraph:
-    """Build one ReAct sub-agent for the given role."""
-    spec = AGENT_REGISTRY[name]
-    tools = build_guarded_tools(tool_map, spec.tool_names, guard, ctx)
+    """Build one ReAct sub-agent from the YAML registry."""
+    spec = get_agent_spec(name, registry_path=registry_path)
+    tools = build_guarded_tools(tool_map, spec.tools, guard, ctx)
     llm = model or get_chat_model(spec.model_tier, settings=settings or get_settings())
     return create_react_agent(
         llm,
@@ -123,9 +91,19 @@ def build_all_agents(
     ctx: ApprovalContext,
     *,
     settings: Settings | None = None,
-) -> dict[AgentName, CompiledStateGraph]:
-    """Build the lean v1 team: Triage, Diagnosis, Remediation."""
+    registry_path: str | None = None,
+) -> dict[str, CompiledStateGraph]:
+    """Build every agent declared in the YAML registry (workflow order)."""
+    registry = load_agent_registry(registry_path)
+    names = registry.workflow or list(registry.agents.keys())
     return {
-        name: build_agent(name, tool_map, guard, ctx, settings=settings)
-        for name in ("triage", "diagnosis", "remediation")
+        name: build_agent(
+            name,
+            tool_map,
+            guard,
+            ctx,
+            settings=settings,
+            registry_path=registry_path,
+        )
+        for name in names
     }

@@ -10,18 +10,12 @@ from pathlib import Path
 
 import pytest
 
+from app.agents.registry import load_agent_registry
 from app.domain.models import HarmTier
 from app.integrations.mock import MockSRE
 from app.rag.embeddings import HashingEmbedder
 from app.rag.retriever import RunbookRetriever
-from app.tools.catalog import (
-    DIAGNOSIS_TOOLS,
-    REMEDIATION_TOOLS,
-    TRIAGE_TOOLS,
-    build_tools,
-    select,
-    tool_harm_tier,
-)
+from app.tools.catalog import build_tools, select, tool_harm_tier
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIO = ROOT / "data" / "scenarios" / "checkout-5xx-spike.yaml"
@@ -81,12 +75,12 @@ def test_invalid_status_is_rejected(tools) -> None:
     assert "Invalid status" in out
 
 
-def test_agent_tool_selections_exist(tools) -> None:
-    for names in (TRIAGE_TOOLS, DIAGNOSIS_TOOLS, REMEDIATION_TOOLS):
-        selected = select(tools, names)
-        assert len(selected) == len(names)
-    # Remediation owns the dangerous tools; triage/diagnosis are read-only.
-    triage = select(tools, TRIAGE_TOOLS)
+def test_agent_tool_selections_from_yaml(tools) -> None:
+    registry = load_agent_registry()
+    for name in registry.workflow:
+        selected = select(tools, registry.agents[name].tools)
+        assert len(selected) == len(registry.agents[name].tools)
+    triage = select(tools, registry.agents["triage"].tools)
     assert all(tool_harm_tier(t) is HarmTier.READ_ONLY for t in triage)
-    remediation = select(tools, REMEDIATION_TOOLS)
+    remediation = select(tools, registry.agents["remediation"].tools)
     assert any(tool_harm_tier(t) is HarmTier.CRITICAL for t in remediation)

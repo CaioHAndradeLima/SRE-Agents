@@ -40,31 +40,7 @@ def _make(func: object, harm_tier: HarmTier) -> StructuredTool:
     )
 
 
-# Which tools each agent is allowed to use (referenced by name).
-TRIAGE_TOOLS = [
-    "get_incident",
-    "get_active_alerts",
-    "list_recent_deploys",
-    "query_metrics",
-]
-DIAGNOSIS_TOOLS = [
-    "query_logs",
-    "query_metrics",
-    "get_failing_ci_runs",
-    "get_ci_logs",
-    "get_recent_commits",
-    "git_blame",
-    "search_runbooks",
-]
-REMEDIATION_TOOLS = [
-    "post_incident_note",
-    "update_incident_status",
-    "rerun_ci_job",
-    "restart_service",
-    "scale_service",
-    "rollback_deploy",
-    "failover",
-]
+# Agent → tool assignments live in app/agents/agents.yaml (dynamic registry).
 
 
 def select(tools: dict[str, BaseTool], names: list[str]) -> list[BaseTool]:

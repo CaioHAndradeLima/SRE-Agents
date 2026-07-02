@@ -5,12 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.agents.factory import (
-    AGENT_REGISTRY,
     build_agent,
     build_all_agents,
     build_guarded_tools,
+    get_agent_spec,
     guard_wrap,
 )
+from app.agents.registry import load_agent_registry
 from app.config import Settings
 from app.integrations.mock import MockSRE
 from app.rag.embeddings import HashingEmbedder
@@ -33,11 +34,21 @@ def _setup():
     return tools, guard, ctx
 
 
-def test_registry_defines_three_agents() -> None:
-    assert set(AGENT_REGISTRY) == {"triage", "diagnosis", "remediation"}
-    assert len(AGENT_REGISTRY["triage"].tool_names) == 4
-    assert len(AGENT_REGISTRY["diagnosis"].tool_names) == 7
-    assert len(AGENT_REGISTRY["remediation"].tool_names) == 7
+def test_yaml_registry_defines_three_agents() -> None:
+    registry = load_agent_registry()
+    assert set(registry.agents) == {"triage", "diagnosis", "remediation"}
+    assert registry.workflow == ["triage", "diagnosis", "remediation"]
+    assert len(registry.agents["triage"].tools) == 4
+    assert len(registry.agents["diagnosis"].tools) == 7
+    assert "Triage agent" in registry.agents["triage"].prompt
+
+
+def test_get_agent_spec_unknown_raises() -> None:
+    try:
+        get_agent_spec("does-not-exist")
+        raise AssertionError("expected KeyError")
+    except KeyError as exc:
+        assert "does-not-exist" in str(exc)
 
 
 def test_guard_wrap_blocks_critical_tool() -> None:
@@ -49,8 +60,9 @@ def test_guard_wrap_blocks_critical_tool() -> None:
 
 def test_build_guarded_tools_preserves_names() -> None:
     tools, guard, ctx = _setup()
-    guarded = build_guarded_tools(tools, AGENT_REGISTRY["triage"].tool_names, guard, ctx)
-    assert {t.name for t in guarded} == set(AGENT_REGISTRY["triage"].tool_names)
+    spec = get_agent_spec("triage")
+    guarded = build_guarded_tools(tools, spec.tools, guard, ctx)
+    assert {t.name for t in guarded} == set(spec.tools)
 
 
 def test_build_all_agents_compiles_graphs() -> None:

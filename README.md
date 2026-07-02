@@ -269,7 +269,7 @@ pytest tests/evals -m judge  # LLM-as-judge (requires model keys + dataset)
 ```
 multi-agent-ai/
 ├── app/
-│   ├── agents/            # supervisor + dynamic sub-agent factory + registry (triage/diagnosis/remediation)
+│   ├── agents/            # agents.yaml registry + dynamic sub-agent factory (triage/diagnosis/remediation)
 │   ├── graph/             # LangGraph wiring, incident state, checkpointer, interrupts
 │   ├── tools/             # tools, each tagged with a harm tier
 │   ├── integrations/      # SIMULATED SRE env: log store, metrics, CI, deploy controller (mock)
