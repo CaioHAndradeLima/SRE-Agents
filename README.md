@@ -162,12 +162,39 @@ among engineers and runs locally with zero signup, so reviewers can clone and ru
 
 ## 📚 Retrieval-Augmented Generation (RAG)
 
-- **Vector store:** Qdrant (local via Docker).
-- **Corpus:** runbooks, past **postmortems**, architecture notes, and known-issue entries (seeded in `data/`).
-- **Ingestion pipeline:** load docs → chunk → embed → upsert (with metadata: service, severity, tags).
-- **Retrieval:** semantic search + metadata filters, exposed to the **Diagnosis agent** as a tool.
-- **Grounding:** root-cause hypotheses cite the retrieved runbook/postmortem; un-grounded claims are
-  discouraged by prompt + measured by the eval suite.
+**Why RAG here?** The live tools (logs, metrics, CI) tell the agent *what is happening right now*; RAG
+tells it *what the organization already knows about how to handle it*. An LLM has never seen your private
+runbooks, postmortems, or service ownership — RAG injects that knowledge on demand. Concretely it gives
+the copilot five advantages:
+
+- **Grounded, safe recommendations.** High-stakes actions (e.g. a 🔴 production rollback) are proposed
+  from a **documented, approved procedure**, not invented — the agent can cite *"per runbook
+  `checkout-payment-5xx`, roll back the deploy"* instead of guessing.
+- **Institutional memory.** Past postmortems surface prior fixes: *"we've seen this NullPointer-after-deploy
+  before — the fix was a rollback."*
+- **Freshness without retraining.** Update a markdown runbook and re-index; the agent's knowledge updates
+  instantly. No fine-tuning.
+- **Context efficiency & cost.** Retrieve only the 2–3 relevant runbooks per query instead of stuffing
+  everything into the prompt.
+- **Auditability.** Because specific documents are retrieved, traces record *which* runbook the agent
+  followed — feeding straight into observability and evals.
+
+**How it's built**
+
+- **Vector store:** Qdrant — runs as a Docker service for real use, and **in-memory (`:memory:`)** for
+  tests so the suite needs no infrastructure.
+- **Corpus:** runbooks & postmortems in `data/runbooks/` (e.g. a checkout-5xx runbook that prescribes the
+  *safe* action and explicitly warns against the unsafe one).
+- **Embeddings:** local **fastembed** ONNX model (no embedding API/key required). The embedder is injected
+  behind an `Embedder` protocol, so tests use a deterministic offline embedder while runtime uses fastembed.
+- **Retrieval:** semantic search returning scored, typed `RetrievedDoc`s, exposed to the **Diagnosis
+  agent** as the `search_runbooks` tool.
+- **Grounding:** root-cause hypotheses cite the retrieved runbook; un-grounded claims are discouraged by
+  prompt and **measured by the LLM-as-judge eval suite** (groundedness score).
+
+> Net effect: without RAG the copilot is a smart generalist *guessing* at your infra; with RAG it behaves
+> like an engineer who has read every runbook and postmortem — which is what makes its diagnosis both
+> **correct and safe**.
 
 ---
 
