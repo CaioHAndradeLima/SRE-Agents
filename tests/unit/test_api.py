@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
+import openai
 import pytest
 from fastapi.testclient import TestClient
 
@@ -166,3 +168,39 @@ def test_eval_endpoint(client: TestClient) -> None:
     assert body["passed"] is True
     assert len(body["dimensions"]) == 3
     assert body["mean_score"] == 5.0
+
+
+class _ErrorGraph:
+    """Graph whose invoke always raises a given exception (gateway failure)."""
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+
+    def invoke(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise self._exc
+
+
+def _client_raising(exc: Exception) -> TestClient:
+    def factory(_path: Any) -> _FakeCopilot:
+        return _FakeCopilot(graph=_ErrorGraph(exc), guard=_FakeGuard(), env=_FakeEnv())
+
+    service = IncidentService(copilot_factory=factory, judge_builder=lambda: _StubJudge())
+    return TestClient(create_app(service=service), raise_server_exceptions=False)
+
+
+def test_gateway_status_error_maps_to_502() -> None:
+    exc = openai.APIError(
+        "boom", request=httpx.Request("POST", "http://gw"), body=None
+    )
+    client = _client_raising(exc)
+    resp = client.post("/incidents", json={"scenario_id": "checkout-5xx-spike"})
+    assert resp.status_code == 502
+    assert "model gateway error" in resp.json()["detail"]
+
+
+def test_gateway_connection_error_maps_to_503() -> None:
+    exc = openai.APIConnectionError(request=httpx.Request("POST", "http://gw"))
+    client = _client_raising(exc)
+    resp = client.post("/incidents", json={"scenario_id": "checkout-5xx-spike"})
+    assert resp.status_code == 503
+    assert "unreachable" in resp.json()["detail"]

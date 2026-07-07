@@ -39,7 +39,8 @@ def test_yaml_registry_defines_three_agents() -> None:
     assert set(registry.agents) == {"triage", "diagnosis", "remediation"}
     assert registry.workflow == ["triage", "diagnosis", "remediation"]
     assert len(registry.agents["triage"].tools) == 4
-    assert len(registry.agents["diagnosis"].tools) == 7
+    assert len(registry.agents["diagnosis"].tools) == 8
+    assert "list_recent_deploys" in registry.agents["diagnosis"].tools
     assert "Triage agent" in registry.agents["triage"].prompt
 
 

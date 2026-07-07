@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+import openai
 import yaml
 from langgraph.types import Command
 
@@ -51,6 +52,21 @@ class SessionNotFound(Exception):
 
 class InvalidApprovalState(Exception):
     """Approve called on a session that is not awaiting approval."""
+
+
+class GatewayError(Exception):
+    """The model gateway (LiteLLM) returned an error (auth, rate limit, 5xx…)."""
+
+
+class GatewayUnavailable(Exception):
+    """The model gateway could not be reached (down, timeout, network)."""
+
+
+def _describe_openai_error(exc: openai.APIError) -> str:
+    """Concise, safe message for a gateway/provider error (no stack traces)."""
+    status = getattr(exc, "status_code", None)
+    message = getattr(exc, "message", None) or str(exc)
+    return f"{status}: {message}" if status else message
 
 
 @dataclass
@@ -143,9 +159,10 @@ class IncidentService:
             copilot=copilot,
             config=config,
         )
-        result = copilot.graph.invoke(
+        result = self._invoke(
+            copilot.graph,
             {"incident_id": incident_id, "messages": [("user", prompt)]},
-            config=config,
+            config,
         )
         self._apply_result(session, result)
         self._sessions[session_id] = session
@@ -155,11 +172,23 @@ class IncidentService:
         session = self.get_session(session_id)
         if session.status != IncidentStatus.AWAITING_APPROVAL:
             raise InvalidApprovalState(session_id)
-        result = session.copilot.graph.invoke(
-            Command(resume={"approved": approved}), config=session.config
+        result = self._invoke(
+            session.copilot.graph,
+            Command(resume={"approved": approved}),
+            session.config,
         )
         self._apply_result(session, result)
         return session
+
+    @staticmethod
+    def _invoke(graph: Any, payload: Any, config: dict[str, Any]) -> dict[str, Any]:
+        """Run the graph, translating gateway/provider failures into clean errors."""
+        try:
+            return graph.invoke(payload, config=config)
+        except openai.APIConnectionError as exc:  # network / timeout / gateway down
+            raise GatewayUnavailable(str(exc)) from exc
+        except openai.APIError as exc:  # auth, rate limit, upstream 4xx/5xx
+            raise GatewayError(_describe_openai_error(exc)) from exc
 
     def get_session(self, session_id: str) -> Session:
         try:

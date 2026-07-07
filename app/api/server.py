@@ -28,6 +28,8 @@ from app.api.schemas import (
     StartIncidentRequest,
 )
 from app.api.service import (
+    GatewayError,
+    GatewayUnavailable,
     IncidentService,
     InvalidApprovalState,
     ScenarioNotFound,
@@ -68,6 +70,23 @@ def create_app(service: IncidentService | None = None) -> FastAPI:
     async def _invalid_approval(_: Request, exc: InvalidApprovalState):
         raise HTTPException(
             status_code=409, detail="session is not awaiting approval"
+        )
+
+    @app.exception_handler(GatewayUnavailable)
+    async def _gateway_unavailable(_: Request, exc: GatewayUnavailable):
+        raise HTTPException(
+            status_code=503,
+            detail=f"model gateway unreachable (is LiteLLM running?): {exc}",
+        )
+
+    @app.exception_handler(GatewayError)
+    async def _gateway_error(_: Request, exc: GatewayError):
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"model gateway error: {exc}. "
+                "Check provider API keys/credits in the gateway."
+            ),
         )
 
     @app.get("/healthz")
