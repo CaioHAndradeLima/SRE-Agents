@@ -12,6 +12,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,7 +62,11 @@ class Settings(BaseSettings):
     langfuse_enabled: bool = False
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
-    langfuse_host: str = "https://cloud.langfuse.com"
+    # Accept either LANGFUSE_HOST (the Langfuse SDK convention) or LANGFUSE_BASE_URL.
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("langfuse_host", "langfuse_base_url"),
+    )
 
     @property
     def langfuse_ready(self) -> bool:
