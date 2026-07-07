@@ -37,8 +37,13 @@ class Settings(BaseSettings):
     litellm_base_url: str = "http://localhost:4000"
     litellm_api_key: str = "sk-local-dev"
 
+    # Logical model groups defined in litellm.config.yaml. Each tier has an
+    # Anthropic-preferring group and an OpenAI-only group; the gateway client picks
+    # between them based on whether ANTHROPIC_API_KEY is configured.
     model_fast: str = "fast"
+    model_fast_openai: str = "fast-openai"
     model_reasoning: str = "reasoning"
+    model_reasoning_openai: str = "reasoning-openai"
 
     # --- RAG / Qdrant ---
     qdrant_url: str = "http://localhost:6333"

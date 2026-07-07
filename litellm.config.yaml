@@ -9,6 +9,17 @@
 # Provider keys are read from the environment (never hardcode them here).
 # =============================================================================
 
+# -----------------------------------------------------------------------------
+# Model-selection policy (IMPORTANT):
+#   Each tier is defined TWICE — an Anthropic-preferring group and an OpenAI-only
+#   group. The app (app/gateway/client.py) selects which group to call based on
+#   whether ANTHROPIC_API_KEY is set:
+#     * ANTHROPIC_API_KEY present -> "fast" / "reasoning"        (Claude preferred)
+#     * no Anthropic key          -> "fast-openai" / "reasoning-openai" (GPT only)
+#   This means: add an Anthropic key and the reasoning tier auto-upgrades to Claude
+#   Sonnet (stronger at multi-step RCA) with ZERO code change; remove it and the
+#   system keeps working on OpenAI alone with no wasted failed calls.
+# -----------------------------------------------------------------------------
 model_list:
   # --- "fast" tier: triage / classification (cheap + low latency) ---
   - model_name: fast
@@ -19,6 +30,11 @@ model_list:
     litellm_params:
       model: anthropic/claude-3-5-haiku-latest
       api_key: os.environ/ANTHROPIC_API_KEY
+  # OpenAI-only variant (used when no ANTHROPIC_API_KEY is configured)
+  - model_name: fast-openai
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
 
   # --- "reasoning" tier: root-cause analysis (stronger models) ---
   - model_name: reasoning
@@ -26,6 +42,11 @@ model_list:
       model: anthropic/claude-3-5-sonnet-latest
       api_key: os.environ/ANTHROPIC_API_KEY
   - model_name: reasoning
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+  # OpenAI-only variant (used when no ANTHROPIC_API_KEY is configured)
+  - model_name: reasoning-openai
     litellm_params:
       model: openai/gpt-4o
       api_key: os.environ/OPENAI_API_KEY

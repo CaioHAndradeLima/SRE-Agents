@@ -21,11 +21,21 @@ ModelTier = Literal["fast", "reasoning"]
 
 
 def _resolve_model(tier: ModelTier, settings: Settings) -> str:
-    """Map a logical tier to the model-group name registered in the gateway."""
-    return {
-        "fast": settings.model_fast,
-        "reasoning": settings.model_reasoning,
-    }[tier]
+    """Map a logical tier to a LiteLLM model group, preferring Anthropic when available.
+
+    We prefer Anthropic (Claude) for reasoning because it is measurably stronger at
+    multi-step tool-use and root-cause analysis (verified in our evals). But we only
+    route there when ``ANTHROPIC_API_KEY`` is configured; otherwise we use the
+    OpenAI-only group so the whole system still runs on an OpenAI key alone — with no
+    failed Anthropic attempts and no wasted fallback latency.
+
+    FUTURE: when an Anthropic key is added, the reasoning tier automatically upgrades
+    to Claude Sonnet with zero code change (this function already handles it).
+    """
+    has_anthropic = bool(settings.anthropic_api_key)
+    if tier == "reasoning":
+        return settings.model_reasoning if has_anthropic else settings.model_reasoning_openai
+    return settings.model_fast if has_anthropic else settings.model_fast_openai
 
 
 def get_chat_model(
