@@ -8,6 +8,7 @@
 pytest>=9,<10
 pytest-asyncio>=1.4,<2       # async agent / tool tests
 respx>=0.23,<1               # mock httpx calls (gateway / mock SRE integrations)
+httpx>=0.28,<1               # FastAPI TestClient transport for API tests
 
 # --- Linting & types ---
 ruff>=0.15,<1
