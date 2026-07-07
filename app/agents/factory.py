@@ -91,9 +91,13 @@ def build_all_agents(
     ctx: ApprovalContext,
     *,
     settings: Settings | None = None,
+    model: BaseChatModel | None = None,
     registry_path: str | None = None,
 ) -> dict[str, CompiledStateGraph]:
-    """Build every agent declared in the YAML registry (workflow order)."""
+    """Build every agent declared in the YAML registry (workflow order).
+
+    ``model`` overrides the per-tier gateway model for every agent (test-only).
+    """
     registry = load_agent_registry(registry_path)
     names = registry.workflow or list(registry.agents.keys())
     return {
@@ -103,6 +107,7 @@ def build_all_agents(
             guard,
             ctx,
             settings=settings,
+            model=model,
             registry_path=registry_path,
         )
         for name in names
