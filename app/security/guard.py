@@ -37,6 +37,9 @@ class ApprovalContext:
 
     confirmed: set[str] = field(default_factory=set)   # compensable tool fingerprints
     approved: set[str] = field(default_factory=set)    # irreversible/critical fingerprints
+    # Set by the human-in-the-loop gate (Layer 6) when an operator approves this
+    # incident's high-risk actions for the whole run.
+    approve_all: bool = False
 
 
 @dataclass
@@ -68,8 +71,8 @@ class PermissionGuard:
         fp = action_fingerprint(tool.name, args)
         return decision_for_tier(
             tier,
-            is_confirmed=fp in ctx.confirmed,
-            is_approved=fp in ctx.approved,
+            is_confirmed=ctx.approve_all or fp in ctx.confirmed,
+            is_approved=ctx.approve_all or fp in ctx.approved,
         )
 
     def _record(
